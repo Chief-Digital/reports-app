@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}דוחות - ReportAI{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">דוחות</h1>
+    <p class="text-gray-500 text-sm mt-0.5">{{ reports|length }} דוחות</p>
+  </div>
+  <a href="{{ url_for('reports_new') }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">+ דוח חדש</a>
+</div>
+
+{% if reports %}
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-100">
+      <tr>
+        <th class="text-right px-5 py-3 font-medium text-gray-500">דוח</th>
+        <th class="text-right px-4 py-3 font-medium text-gray-500">לקוח</th>
+        <th class="text-right px-4 py-3 font-medium text-gray-500">פלטפורמה</th>
+        <th class="text-right px-4 py-3 font-medium text-gray-500">סטטוס</th>
+        <th class="text-right px-4 py-3 font-medium text-gray-500">תאריך</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {% for r in reports %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-5 py-3">
+          <div class="font-medium text-gray-800">{{ r.title }}</div>
+          {% if r.date_range %}<div class="text-xs text-gray-400">{{ r.date_range }}</div>{% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-600">{{ r.client_name or '-' }}</td>
+        <td class="px-4 py-3">
+          <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full {% if r.platform == 'meta' %}bg-blue-50 text-blue-700{% else %}bg-red-50 text-red-700{% endif %}">
+            {% if r.platform == 'meta' %}📘 Meta{% else %}🔴 Google Ads{% endif %}
+          </span>
+        </td>
+        <td class="px-4 py-3">
+          <span class="text-xs px-2 py-0.5 rounded-full {% if r.status == 'published' %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+            {{ 'פורסם' if r.status == 'published' else 'טיוטה' }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-gray-400 text-xs">{{ r.created_at[:10] }}</td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2 justify-end">
+            <a href="{{ url_for('reports_edit', report_id=r.id) }}" class="text-indigo-600 hover:underline text-xs">ערוך</a>
+            <a href="{{ url_for('reports_view', report_id=r.id) }}" class="text-gray-500 hover:underline text-xs" target="_blank">תצוגה</a>
+            <form method="POST" action="{{ url_for('reports_delete', report_id=r.id) }}" onsubmit="return confirm('למחוק דוח זה?')">
+              <button class="text-red-400 hover:text-red-600 text-xs">מחק</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white rounded-xl border border-gray-200 py-16 text-center text-gray-400">
+  <div class="text-5xl mb-4">📊</div>
+  <div class="text-lg font-medium text-gray-600 mb-2">אין דוחות עדיין</div>
+  <a href="{{ url_for('reports_new') }}" class="text-indigo-600 hover:underline">העלה דוח ראשון</a>
+</div>
+{% endif %}
+{% endblock %}

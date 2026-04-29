@@ -1,0 +1,10 @@
+.env
+*.db
+__pycache__/
+*.pyc
+static/uploads/reports/
+static/uploads/images/
+static/uploads/logos/
+service_account.json
+*.log
+.DS_Store

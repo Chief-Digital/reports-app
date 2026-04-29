@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}לקוח חדש - ReportAI{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="mb-6">
+    <a href="{{ url_for('clients_list') }}" class="text-sm text-gray-400 hover:text-gray-600">← חזרה ללקוחות</a>
+    <h1 class="text-2xl font-bold text-gray-900 mt-2">לקוח חדש</h1>
+  </div>
+
+  <form method="POST" enctype="multipart/form-data" class="space-y-6">
+    <div class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">שם הלקוח *</label>
+        <input type="text" name="name" required placeholder="למשל: חברת אלפא" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">לוגו</label>
+        <div class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-300 transition" onclick="document.getElementById('logo-input').click()">
+          <input type="file" id="logo-input" name="logo" accept=".png,.jpg,.jpeg,.svg,.webp" class="hidden" onchange="previewLogo(this)">
+          <div id="logo-preview" class="hidden mb-3">
+            <img id="logo-img" class="h-20 mx-auto object-contain">
+          </div>
+          <div id="logo-placeholder">
+            <div class="text-3xl mb-2">🖼️</div>
+            <div class="text-sm text-gray-500">לחץ להעלאת לוגו</div>
+            <div class="text-xs text-gray-400 mt-1">PNG, JPG, SVG</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-3">פלטת צבעי מותג</label>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">צבע ראשי</label>
+            <div class="flex items-center gap-2">
+              <input type="color" name="primary_color" value="#1a73e8" class="h-10 w-14 rounded cursor-pointer border border-gray-200" id="primary-color">
+              <input type="text" value="#1a73e8" class="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm font-mono" oninput="syncColor(this, 'primary-color')" id="primary-text">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">צבע משני (רקע)</label>
+            <div class="flex items-center gap-2">
+              <input type="color" name="secondary_color" value="#ffffff" class="h-10 w-14 rounded cursor-pointer border border-gray-200" id="secondary-color">
+              <input type="text" value="#ffffff" class="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm font-mono" oninput="syncColor(this, 'secondary-color')" id="secondary-text">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">צבע הדגשה</label>
+            <div class="flex items-center gap-2">
+              <input type="color" name="accent_color" value="#34a853" class="h-10 w-14 rounded cursor-pointer border border-gray-200" id="accent-color">
+              <input type="text" value="#34a853" class="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm font-mono" oninput="syncColor(this, 'accent-color')" id="accent-text">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">צבע טקסט</label>
+            <div class="flex items-center gap-2">
+              <input type="color" name="text_color" value="#1a1a1a" class="h-10 w-14 rounded cursor-pointer border border-gray-200" id="text-color">
+              <input type="text" value="#1a1a1a" class="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm font-mono" oninput="syncColor(this, 'text-color')" id="text-text">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <button type="submit" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700">שמור לקוח</button>
+      <a href="{{ url_for('clients_list') }}" class="px-6 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">ביטול</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function previewLogo(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('logo-img').src = e.target.result;
+      document.getElementById('logo-preview').classList.remove('hidden');
+      document.getElementById('logo-placeholder').classList.add('hidden');
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function syncColor(textInput, colorId) {
+  const val = textInput.value;
+  if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+    document.getElementById(colorId).value = val;
+  }
+}
+
+// Sync color pickers to text inputs
+document.querySelectorAll('input[type=color]').forEach(picker => {
+  picker.addEventListener('input', function() {
+    const textId = this.id.replace('-color', '-text');
+    const el = document.getElementById(textId);
+    if (el) el.value = this.value;
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}{{ report.title }}{% endblock %}
+
+{% block head %}
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: {{ report.primary_color or '#6366f1' }};
+    --accent:  {{ report.accent_color  or '#C9A96E' }};
+  }
+  body { background: #e5e7eb; }
+  .slide-wrap {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto 32px;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.14);
+    page-break-after: always;
+    break-after: page;
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 20px;
+  }
+  .kpi-cell {
+    padding-bottom: 20px;
+    border-bottom: 1px solid #E8E5DD;
+  }
+  .gold-rule { width:36px; height:1px; background:var(--accent); margin:16px 0; }
+  @media print {
+    body { background: white; }
+    nav, .no-print { display: none !important; }
+    .slide-wrap { box-shadow: none; border-radius: 0; margin: 0 auto 0; max-width: 100%; }
+  }
+  @page { size: A4 portrait; margin: 10mm; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+{% if not embed %}
+<div class="no-print flex items-center justify-between mb-6 max-w-3xl mx-auto">
+  <a href="{{ url_for('reports_edit', report_id=report.id) }}" class="text-sm text-gray-500 hover:text-gray-800">← חזרה לעריכה</a>
+  <div class="flex items-center gap-2">
+    {% if report.embed_token %}
+    <button onclick="copyEmbed()" class="px-4 py-2 border border-gray-200 bg-white rounded text-sm hover:bg-gray-50 text-gray-700">📋 העתק iFrame</button>
+    {% endif %}
+    <button onclick="downloadPdf()" class="px-4 py-2 bg-gray-900 text-white rounded text-sm hover:bg-gray-700">⬇️ הורד PDF</button>
+  </div>
+</div>
+{% endif %}
+
+<div id="report-container">
+{% for slide in content.slides %}
+{% set has_img = slide.image_url %}
+
+<div class="slide-wrap">
+
+  {# ── Cover ────────────────────────────────────────────────────── #}
+  {% if slide.type == 'cover' %}
+
+    {% if has_img %}
+    <div style="min-height:720px;display:flex;flex-direction:column;background:#FAFAF7;">
+      <div style="height:290px;background:url('{{ slide.image_url }}') center/cover no-repeat;flex-shrink:0;"></div>
+      <div style="flex:1;padding:40px 44px 44px;display:flex;flex-direction:column;justify-content:space-between;">
+        <div>
+          {% if report.client_name %}
+          <div style="font-family:'Heebo',sans-serif;font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:#888;margin-bottom:20px">{{ report.client_name }}</div>
+          {% endif %}
+          <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:2.1rem;font-weight:400;color:#0A0A0A;line-height:1.2;margin-bottom:0">{{ slide.title or report.title }}</h1>
+          <div class="gold-rule"></div>
+          {% if slide.subtitle %}
+          <p style="font-family:'Heebo',sans-serif;font-size:0.82rem;color:#666;line-height:1.7;max-width:340px">{{ slide.subtitle }}</p>
+          {% endif %}
+        </div>
+        {% if slide.kpis %}
+        <div style="display:flex;gap:0;border-top:1px solid #E8E5DD;padding-top:28px;">
+          {% for k in slide.kpis %}
+          <div style="flex:1;text-align:center;{% if not loop.first %}border-right:1px solid #E8E5DD;{% endif %}padding:0 16px;">
+            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:2rem;font-weight:600;color:#0A0A0A;line-height:1">{{ k.value }}</div>
+            <div style="font-family:'Heebo',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#888;margin-top:7px">{{ k.label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% else %}
+    <div style="min-height:720px;background:var(--primary);color:white;padding:64px 48px;display:flex;flex-direction:column;justify-content:space-between;position:relative;">
+      <div>
+        {% if report.client_name %}
+        <div style="font-family:'Heebo',sans-serif;font-size:10px;letter-spacing:0.35em;text-transform:uppercase;opacity:0.55;margin-bottom:36px">{{ report.client_name }}</div>
+        {% endif %}
+        <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:2.8rem;font-weight:400;line-height:1.18;margin-bottom:0;letter-spacing:-0.01em">{{ slide.title or report.title }}</h1>
+        <div style="width:36px;height:1px;background:rgba(255,255,255,0.45);margin:20px 0;"></div>
+        {% if slide.subtitle %}
+        <p style="font-family:'Heebo',sans-serif;font-size:0.875rem;opacity:0.75;max-width:320px;line-height:1.7">{{ slide.subtitle }}</p>
+        {% endif %}
+      </div>
+      {% if slide.kpis %}
+      <div style="display:flex;gap:0;border-top:1px solid rgba(255,255,255,0.2);padding-top:32px;">
+        {% for k in slide.kpis %}
+        <div style="flex:1;text-align:center;{% if not loop.first %}border-right:1px solid rgba(255,255,255,0.18);{% endif %}padding:0 12px;">
+          <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:2rem;font-weight:600;line-height:1;color:white">{{ k.value }}</div>
+          <div style="font-family:'Heebo',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.58;margin-top:7px">{{ k.label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  {# ── KPI slide ─────────────────────────────────────────────────── #}
+  {% elif slide.type == 'kpi_slide' %}
+
+    {% if has_img %}
+    {# RTL: content first = RIGHT side; image last = LEFT side #}
+    <div style="min-height:720px;display:flex;background:#FAFAF7;">
+      <div style="flex:1;padding:52px 40px;overflow:hidden;">
+        <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.65rem;font-weight:500;color:#0A0A0A;line-height:1.2;margin-bottom:0">{{ slide.title }}</h2>
+        <div class="gold-rule"></div>
+        {% if slide.subtitle %}
+        <p style="font-family:'Heebo',sans-serif;font-size:0.78rem;color:#666;line-height:1.65;margin-bottom:32px;max-width:260px">{{ slide.subtitle }}</p>
+        {% endif %}
+        <div class="kpi-grid">
+          {% for k in slide.kpis %}
+          <div class="kpi-cell">
+            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:2rem;font-weight:600;color:#0A0A0A;line-height:1">{{ k.value }}</div>
+            <div style="font-family:'Heebo',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#888;margin-top:7px">{{ k.label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if slide.note %}
+        <div style="margin-top:28px;padding:14px 18px;border-right:2px solid var(--accent);background:rgba(0,0,0,0.03);font-family:'Heebo',sans-serif;font-size:0.72rem;color:#555;line-height:1.65;font-style:italic">{{ slide.note }}</div>
+        {% endif %}
+      </div>
+      <div style="width:38%;background:url('{{ slide.image_url }}') center/cover no-repeat;flex-shrink:0;"></div>
+    </div>
+
+    {% else %}
+    <div style="min-height:720px;background:#FAFAF7;padding:60px 52px;">
+      <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.9rem;font-weight:500;color:#0A0A0A;margin-bottom:0">{{ slide.title }}</h2>
+      <div class="gold-rule"></div>
+      {% if slide.subtitle %}
+      <p style="font-family:'Heebo',sans-serif;font-size:0.85rem;color:#666;line-height:1.65;margin-bottom:44px;max-width:420px">{{ slide.subtitle }}</p>
+      {% endif %}
+      <div class="kpi-grid">
+        {% for k in slide.kpis %}
+        <div class="kpi-cell">
+          <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:2rem;font-weight:600;color:#0A0A0A;line-height:1">{{ k.value }}</div>
+          <div style="font-family:'Heebo',sans-serif;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#888;margin-top:7px">{{ k.label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if slide.note %}
+      <div style="margin-top:36px;padding:16px 20px;border-right:2px solid var(--accent);background:rgba(0,0,0,0.03);font-family:'Heebo',sans-serif;font-size:0.76rem;color:#555;line-height:1.65;font-style:italic">{{ slide.note }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  {# ── Campaign slide ────────────────────────────────────────────── #}
+  {% elif slide.type == 'campaign_slide' %}
+
+    {% if has_img %}
+    {# RTL: content first = RIGHT side; image last = LEFT side #}
+    <div style="min-height:720px;display:flex;background:#FAFAF7;">
+      <div style="flex:1;padding:52px 44px;">
+        <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.65rem;font-weight:500;color:#0A0A0A;margin-bottom:0">{{ slide.title }}</h2>
+        <div class="gold-rule"></div>
+        {% for c in slide.campaigns %}
+        <div style="padding:18px 0;border-bottom:1px solid #E8E5DD;">
+          <div style="font-family:'Heebo',sans-serif;font-weight:700;font-size:0.82rem;color:#0A0A0A;margin-bottom:5px;letter-spacing:0.02em">{{ c.name }}</div>
+          <div style="font-family:'Heebo',sans-serif;font-size:0.78rem;color:#666;line-height:1.6">{{ c.text }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="width:38%;background:url('{{ slide.image_url }}') center/cover no-repeat;flex-shrink:0;"></div>
+    </div>
+
+    {% else %}
+    <div style="min-height:720px;background:#FAFAF7;padding:60px 52px;">
+      <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.9rem;font-weight:500;color:#0A0A0A;margin-bottom:0">{{ slide.title }}</h2>
+      <div class="gold-rule"></div>
+      {% for c in slide.campaigns %}
+      <div style="padding:18px 0;border-bottom:1px solid #E8E5DD;">
+        <div style="font-family:'Heebo',sans-serif;font-weight:700;font-size:0.82rem;color:#0A0A0A;margin-bottom:5px;letter-spacing:0.02em">{{ c.name }}</div>
+        <div style="font-family:'Heebo',sans-serif;font-size:0.78rem;color:#666;line-height:1.6">{{ c.text }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  {# ── Recommendations slide ─────────────────────────────────────── #}
+  {% elif slide.type == 'recommendations_slide' %}
+
+    {% if has_img %}
+    <div style="min-height:720px;background:url('{{ slide.image_url }}') center/cover no-repeat;position:relative;">
+      <div style="position:absolute;inset:0;background:rgba(8,8,8,0.68);"></div>
+      <div style="position:relative;padding:60px 52px;color:rgba(255,255,255,0.9);z-index:1;">
+    {% else %}
+    <div style="min-height:720px;background:#0A0A0A;">
+      <div style="padding:60px 52px;color:rgba(255,255,255,0.9);">
+    {% endif %}
+        <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.9rem;font-weight:400;margin-bottom:0;letter-spacing:0.01em">{{ slide.title }}</h2>
+        <div style="width:36px;height:1px;background:var(--accent);margin:16px 0 36px;"></div>
+        {% for item in slide['items'] %}
+        <div style="padding:16px 0;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:flex-start;gap:16px;">
+          <span style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.1rem;color:var(--accent);flex-shrink:0;line-height:1.4;opacity:0.9">0{{ loop.index }}</span>
+          <span style="font-family:'Heebo',sans-serif;font-size:0.85rem;line-height:1.65;flex:1">{{ item }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  {# ── Custom slide ──────────────────────────────────────────────── #}
+  {% else %}
+
+    {% if has_img %}
+    <div style="min-height:720px;background:url('{{ slide.image_url }}') center/cover no-repeat;position:relative;">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,0.52);"></div>
+      <div style="position:relative;padding:60px 52px;color:rgba(255,255,255,0.9);z-index:1;">
+        <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.9rem;font-weight:400;margin-bottom:0">{{ slide.title or '' }}</h2>
+        <div style="width:36px;height:1px;background:var(--accent);margin:16px 0 20px;"></div>
+        <p style="font-family:'Heebo',sans-serif;font-size:0.9rem;line-height:1.75;color:rgba(255,255,255,0.8)">{{ slide.text or '' }}</p>
+      </div>
+    </div>
+    {% else %}
+    <div style="min-height:720px;background:#FAFAF7;padding:60px 52px;">
+      <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.9rem;font-weight:400;color:#0A0A0A;margin-bottom:0">{{ slide.title or '' }}</h2>
+      <div style="width:36px;height:1px;background:var(--accent);margin:16px 0 20px;"></div>
+      <p style="font-family:'Heebo',sans-serif;font-size:0.9rem;line-height:1.75;color:#555">{{ slide.text or '' }}</p>
+    </div>
+    {% endif %}
+
+  {% endif %}
+
+</div>{# end .slide-wrap #}
+{% endfor %}
+</div>{# end #report-container #}
+
+{% endblock %}
+
+{% block scripts %}
+{% if not embed %}
+<script>
+function downloadPdf() {
+  const el = document.getElementById('report-container');
+  html2pdf().set({
+    margin: [8, 8],
+    filename: '{{ report.title | replace('"','') }}.pdf',
+    image: { type: 'jpeg', quality: 0.97 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(el).save();
+}
+
+function copyEmbed() {
+  {% if report.embed_token %}
+  const url = '{{ url_for("embed_view", token=report.embed_token, _external=True) }}';
+  {% else %}
+  const url = '';
+  {% endif %}
+  const code = `<iframe src="${url}" width="100%" height="900" frameborder="0" allowfullscreen></iframe>`;
+  navigator.clipboard.writeText(code);
+  event.target.textContent = '✅ הועתק!';
+  setTimeout(() => event.target.textContent = '📋 העתק iFrame', 2000);
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}לוח בקרה - ReportAI{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">שלום 👋</h1>
+  <p class="text-gray-500 mt-1">ניהול דוחות שיווק דיגיטלי ללקוחות</p>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-3 gap-4 mb-8">
+  <div class="bg-white rounded-xl border border-gray-200 p-5">
+    <div class="text-3xl font-bold text-indigo-600">{{ stats.clients }}</div>
+    <div class="text-sm text-gray-500 mt-1">לקוחות פעילים</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 p-5">
+    <div class="text-3xl font-bold text-gray-800">{{ stats.reports }}</div>
+    <div class="text-sm text-gray-500 mt-1">דוחות סה"כ</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 p-5">
+    <div class="text-3xl font-bold text-green-600">{{ stats.published }}</div>
+    <div class="text-sm text-gray-500 mt-1">דוחות שפורסמו</div>
+  </div>
+</div>
+
+<!-- Quick actions -->
+<div class="grid grid-cols-2 gap-4 mb-8">
+  <a href="{{ url_for('reports_new') }}" class="bg-indigo-600 text-white rounded-xl p-6 flex items-center gap-4 hover:bg-indigo-700 transition">
+    <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">📊</div>
+    <div>
+      <div class="font-semibold text-lg">העלה דוח חדש</div>
+      <div class="text-indigo-200 text-sm">CSV / Excel מ-Meta או Google Ads</div>
+    </div>
+  </a>
+  <a href="{{ url_for('clients_new') }}" class="bg-white border border-gray-200 rounded-xl p-6 flex items-center gap-4 hover:border-indigo-300 hover:bg-indigo-50 transition">
+    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">👤</div>
+    <div>
+      <div class="font-semibold text-lg text-gray-800">הוסף לקוח</div>
+      <div class="text-gray-500 text-sm">לוגו, צבעי מותג, הגדרות</div>
+    </div>
+  </a>
+</div>
+
+<!-- Recent reports -->
+<div class="bg-white rounded-xl border border-gray-200">
+  <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+    <h2 class="font-semibold text-gray-800">דוחות אחרונים</h2>
+    <a href="{{ url_for('reports_list') }}" class="text-sm text-indigo-600 hover:underline">הצג הכל</a>
+  </div>
+  {% if stats.recent %}
+  <div class="divide-y divide-gray-50">
+    {% for r in stats.recent %}
+    <div class="px-5 py-3 flex items-center justify-between hover:bg-gray-50">
+      <div class="flex items-center gap-3">
+        <span class="text-lg">{% if r.platform == 'meta' %}📘{% else %}🔴{% endif %}</span>
+        <div>
+          <div class="font-medium text-gray-800">{{ r.title }}</div>
+          <div class="text-xs text-gray-400">{{ r.client_name or 'ללא לקוח' }} · {{ r.created_at[:10] }}</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-0.5 rounded-full {% if r.status == 'published' %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+          {{ 'פורסם' if r.status == 'published' else 'טיוטה' }}
+        </span>
+        <a href="{{ url_for('reports_edit', report_id=r.id) }}" class="text-sm text-indigo-600 hover:underline">ערוך</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="px-5 py-12 text-center text-gray-400">
+    <div class="text-4xl mb-3">📂</div>
+    <div>עדיין אין דוחות. <a href="{{ url_for('reports_new') }}" class="text-indigo-600 hover:underline">העלה דוח ראשון</a></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% block title %}עריכת דוח - {{ report.title }}{% endblock %}
+
+{% block head %}
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  .slide-thumb { transition: border-color 0.15s, box-shadow 0.15s; }
+  .slide-thumb.active { border-color: #6366f1; box-shadow: 0 0 0 2px #a5b4fc; }
+  .slide-preview { min-height: 720px; }
+  [contenteditable]:focus { outline: 2px solid #6366f1; border-radius: 3px; padding: 2px 4px; }
+  @media print { nav, #sidebar, .no-print { display: none !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex gap-0 -mx-4 -my-6" style="min-height:calc(100vh - 56px)">
+
+  <!-- Sidebar: slide list -->
+  <div id="sidebar" class="bg-white border-l border-gray-200 flex flex-col" style="width:260px;flex-shrink:0">
+    <div class="p-4 border-b border-gray-100">
+      <div class="font-semibold text-gray-800 text-sm truncate">{{ report.title }}</div>
+      <div class="text-xs text-gray-400 mt-0.5">{{ report.client_name or 'ללא לקוח' }}</div>
+    </div>
+
+    <!-- Slide thumbnails -->
+    <div id="slide-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+      <!-- rendered by JS -->
+    </div>
+
+    <div class="p-3 border-t border-gray-100 space-y-2">
+      <button onclick="addSlide('custom')" class="w-full text-sm py-2 border border-dashed border-gray-300 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 text-gray-500">+ הוסף שקופית</button>
+    </div>
+
+    <div class="p-3 border-t border-gray-100 space-y-2">
+      <button onclick="saveReport()" id="save-btn" class="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">💾 שמור</button>
+      <a href="{{ url_for('reports_view', report_id=report.id) }}" target="_blank" class="block w-full py-2 text-center border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50">👁️ תצוגה מקדימה</a>
+      <button onclick="publishReport()" id="publish-btn" class="w-full py-2.5 rounded-xl text-sm font-semibold
+        {% if report.status == 'published' %}bg-green-600 text-white hover:bg-green-700{% else %}bg-indigo-600 text-white hover:bg-indigo-700{% endif %}">
+        {% if report.status == 'published' %}✅ פורסם – עדכן{% else %}🚀 פרסם{% endif %}
+      </button>
+    </div>
+  </div>
+
+  <!-- Main: slide editor -->
+  <div class="flex-1 bg-gray-100 flex flex-col overflow-hidden">
+
+    <!-- Slide toolbar -->
+    <div id="slide-toolbar" class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 no-print">
+      <span id="slide-type-label" class="text-sm text-gray-400"></span>
+      <div class="flex-1"></div>
+      <label class="text-sm text-indigo-600 cursor-pointer hover:underline flex items-center gap-1" id="img-label">
+        🖼️ העלה תמונת רקע
+        <input type="file" id="slide-img-input" accept=".png,.jpg,.jpeg,.webp,.gif" class="hidden" onchange="uploadSlideImage(this)">
+      </label>
+      <button id="remove-img-btn" onclick="removeSlideImage()" class="text-xs text-red-400 hover:text-red-600 hidden">✕ הסר תמונה</button>
+      <button onclick="deleteCurrentSlide()" class="text-xs text-red-400 hover:text-red-600 border border-red-200 rounded px-2 py-1">🗑 מחק שקופית</button>
+    </div>
+
+    <!-- Slide canvas -->
+    <div class="flex-1 overflow-y-auto p-6 flex items-start justify-center">
+      <div id="slide-canvas" class="w-full max-w-lg bg-white rounded-2xl shadow-lg overflow-hidden slide-preview">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Publish modal -->
+<div id="publish-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl p-6 max-w-md w-full">
+    <h3 class="text-lg font-bold mb-2">🎉 הדוח פורסם!</h3>
+    <p class="text-sm text-gray-600 mb-1">קישור לדוח:</p>
+    <input id="view-url" class="w-full border border-gray-200 rounded-lg p-2 text-sm mb-3" readonly>
+    <p class="text-sm text-gray-600 mb-1">קוד iFrame להטמעה:</p>
+    <textarea id="iframe-code" class="w-full border border-gray-200 rounded-lg p-3 text-xs font-mono" rows="3" readonly></textarea>
+    <div class="flex gap-2 mt-4">
+      <button onclick="copyIframe()" class="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">העתק קוד iFrame</button>
+      <button onclick="document.getElementById('publish-modal').classList.add('hidden')" class="px-4 py-2 border border-gray-200 rounded-lg text-sm">סגור</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const REPORT_ID = {{ report.id }};
+const CLIENT_PRIMARY = "{{ report.primary_color or '#6366f1' }}";
+const CLIENT_ACCENT = "{{ report.accent_color or '#C9A96E' }}";
+const CLIENT_NAME  = "{{ report.client_name or '' }}";
+const REPORT_TITLE = "{{ report.title or '' }}";
+
+let slides = {{ content.slides | tojson }};
+let currentIdx = 0;
+
+// ── Slide list (thumbnails) ────────────────────────────────────────────
+
+function renderSlideList() {
+  const list = document.getElementById('slide-list');
+  list.innerHTML = '';
+  slides.forEach((slide, i) => {
+    const el = document.createElement('div');
+    el.className = `slide-thumb cursor-pointer rounded-xl border-2 p-3 text-xs ${i === currentIdx ? 'active border-indigo-400 bg-indigo-50' : 'border-gray-100 bg-white hover:border-gray-300'}`;
+    el.innerHTML = `
+      <div class="font-medium text-gray-700 truncate">${slideTypeLabel(slide.type)} ${i + 1}</div>
+      <div class="text-gray-400 mt-0.5 truncate">${slide.title || ''}</div>
+      ${slide.image_url ? `<div class="mt-1.5 h-10 rounded overflow-hidden"><img src="${slide.image_url}" class="w-full h-full object-cover"></div>` : ''}
+    `;
+    el.onclick = () => selectSlide(i);
+    list.appendChild(el);
+  });
+}
+
+function slideTypeLabel(type) {
+  return {cover:'🎯 כריכה', kpi_slide:'📊 KPIs', campaign_slide:'🏆 קמפיינים', recommendations_slide:'💡 המלצות', custom:'✏️ מותאם'}[type] || '📄 שקופית';
+}
+
+// ── Select + render current slide ─────────────────────────────────────
+
+function selectSlide(i) {
+  currentIdx = i;
+  renderSlideList();
+  renderSlideCanvas();
+  updateToolbar();
+}
+
+function updateToolbar() {
+  const slide = slides[currentIdx];
+  if (!slide) return;
+  document.getElementById('slide-type-label').textContent = slideTypeLabel(slide.type) + ' – שקופית ' + (currentIdx + 1) + ' מתוך ' + slides.length;
+  const hasImg = !!slide.image_url;
+  document.getElementById('remove-img-btn').classList.toggle('hidden', !hasImg);
+}
+
+function renderSlideCanvas() {
+  const slide = slides[currentIdx];
+  if (!slide) { document.getElementById('slide-canvas').innerHTML = ''; return; }
+  document.getElementById('slide-canvas').innerHTML = buildSlideHTML(slide, currentIdx, true);
+}
+
+// ── Slide HTML builder ────────────────────────────────────────────────
+
+function buildSlideHTML(slide, idx, editMode) {
+  const e = editMode;
+  const hasImg = !!slide.image_url;
+  const SERIF = "'Cormorant Garamond', Georgia, serif";
+  const SANS  = "'Heebo', sans-serif";
+  const GOLD  = CLIENT_ACCENT;
+  const BLACK = '#0A0A0A';
+  const CREAM = '#FAFAF7';
+  const GRAY  = '#888888';
+  const RULE  = '#E8E5DD';
+
+  function kpiItem(k, ki, withBorder) {
+    return `<div style="flex:1;text-align:center;${withBorder?'border-right:1px solid '+RULE+';':''}padding:0 16px;">
+      <div ${e?`contenteditable="true" onblur="updateKpi(${idx},${ki},'value',this.innerText)"`:''}
+           style="font-family:${SERIF};font-size:2rem;font-weight:600;color:${BLACK};line-height:1">${esc(k.value||'')}</div>
+      <div ${e?`contenteditable="true" onblur="updateKpi(${idx},${ki},'label',this.innerText)"`:''}
+           style="font-family:${SANS};font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:${GRAY};margin-top:7px">${esc(k.label||'')}</div>
+    </div>`;
+  }
+
+  function kpiGrid(kpis) {
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px 20px;">
+      ${kpis.map((k,ki)=>`
+        <div style="padding-bottom:20px;border-bottom:1px solid ${RULE};">
+          <div ${e?`contenteditable="true" onblur="updateKpi(${idx},${ki},'value',this.innerText)"`:''}
+               style="font-family:${SERIF};font-size:2rem;font-weight:600;color:${BLACK};line-height:1">${esc(k.value||'')}</div>
+          <div ${e?`contenteditable="true" onblur="updateKpi(${idx},${ki},'label',this.innerText)"`:''}
+               style="font-family:${SANS};font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:${GRAY};margin-top:7px">${esc(k.label||'')}</div>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  function goldRule() { return `<div style="width:36px;height:1px;background:${GOLD};margin:16px 0;"></div>`; }
+
+  switch (slide.type) {
+
+    case 'cover': {
+      if (hasImg) {
+        return `
+          <div style="min-height:720px;display:flex;flex-direction:column;background:${CREAM};">
+            <div style="height:290px;background:url('${slide.image_url}') center/cover no-repeat;flex-shrink:0;"></div>
+            <div style="flex:1;padding:40px 44px 44px;display:flex;flex-direction:column;justify-content:space-between;">
+              <div>
+                ${CLIENT_NAME?`<div style="font-family:${SANS};font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:${GRAY};margin-bottom:20px">${CLIENT_NAME}</div>`:''}
+                <h1 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                    style="font-family:${SERIF};font-size:2.1rem;font-weight:400;color:${BLACK};line-height:1.2;margin-bottom:0">${esc(slide.title||REPORT_TITLE)}</h1>
+                ${goldRule()}
+                <p ${e?`contenteditable="true" onblur="updateField(${idx},'subtitle',this.innerText)"`:''}
+                   style="font-family:${SANS};font-size:0.82rem;color:#666;line-height:1.7;max-width:340px">${esc(slide.subtitle||'')}</p>
+              </div>
+              <div style="display:flex;gap:0;border-top:1px solid ${RULE};padding-top:28px;">
+                ${(slide.kpis||[]).map((k,ki)=>kpiItem(k,ki,ki>0)).join('')}
+              </div>
+            </div>
+          </div>`;
+      } else {
+        return `
+          <div style="min-height:720px;background:${CLIENT_PRIMARY};color:white;padding:64px 48px;display:flex;flex-direction:column;justify-content:space-between;position:relative;">
+            <div>
+              ${CLIENT_NAME?`<div style="font-family:${SANS};font-size:10px;letter-spacing:0.35em;text-transform:uppercase;opacity:0.55;margin-bottom:36px">${CLIENT_NAME}</div>`:''}
+              <h1 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                  style="font-family:${SERIF};font-size:2.8rem;font-weight:400;line-height:1.18;margin-bottom:0;letter-spacing:-0.01em">${esc(slide.title||REPORT_TITLE)}</h1>
+              <div style="width:36px;height:1px;background:rgba(255,255,255,0.45);margin:20px 0;"></div>
+              <p ${e?`contenteditable="true" onblur="updateField(${idx},'subtitle',this.innerText)"`:''}
+                 style="font-family:${SANS};font-size:0.875rem;opacity:0.75;max-width:320px;line-height:1.7">${esc(slide.subtitle||'')}</p>
+            </div>
+            <div style="display:flex;gap:0;border-top:1px solid rgba(255,255,255,0.2);padding-top:32px;">
+              ${(slide.kpis||[]).map((k,ki)=>`
+                <div style="flex:1;text-align:center;${ki>0?'border-right:1px solid rgba(255,255,255,0.18);':''}padding:0 12px;">
+                  <div ${e?`contenteditable="true" onblur="updateKpi(${idx},${ki},'value',this.innerText)"`:''}
+                       style="font-family:${SERIF};font-size:2rem;font-weight:600;line-height:1;color:white">${esc(k.value||'')}</div>
+                  <div ${e?`contenteditable="true" onblur="updateKpi(${idx},${ki},'label',this.innerText)"`:''}
+                       style="font-family:${SANS};font-size:9px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.58;margin-top:7px">${esc(k.label||'')}</div>
+                </div>`).join('')}
+            </div>
+            ${e?`<div style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:9px;opacity:0.3;font-family:${SANS}">לחץ לעריכה</div>`:''}
+          </div>`;
+      }
+    }
+
+    case 'kpi_slide': {
+      if (hasImg) {
+        // RTL: content first = RIGHT side; image last = LEFT side
+        return `
+          <div style="min-height:720px;display:flex;background:${CREAM};">
+            <div style="flex:1;padding:52px 40px;overflow:hidden;">
+              <h2 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                  style="font-family:${SERIF};font-size:1.65rem;font-weight:500;color:${BLACK};line-height:1.2;margin-bottom:0">${esc(slide.title||'')}</h2>
+              ${goldRule()}
+              <p ${e?`contenteditable="true" onblur="updateField(${idx},'subtitle',this.innerText)"`:''}
+                 style="font-family:${SANS};font-size:0.78rem;color:#666;line-height:1.65;margin-bottom:32px;max-width:260px">${esc(slide.subtitle||'')}</p>
+              ${kpiGrid(slide.kpis||[])}
+              ${slide.note?`<div style="margin-top:28px;padding:14px 18px;border-right:2px solid ${GOLD};background:rgba(0,0,0,0.03);font-family:${SANS};font-size:0.72rem;color:#555;line-height:1.65;font-style:italic"><span ${e?`contenteditable="true" onblur="updateField(${idx},'note',this.innerText)"`:''}>${esc(slide.note)}</span></div>`:''}
+            </div>
+            <div style="width:38%;background:url('${slide.image_url}') center/cover no-repeat;flex-shrink:0;"></div>
+          </div>`;
+      } else {
+        return `
+          <div style="min-height:720px;background:${CREAM};padding:60px 52px;">
+            <h2 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                style="font-family:${SERIF};font-size:1.9rem;font-weight:500;color:${BLACK};margin-bottom:0">${esc(slide.title||'')}</h2>
+            ${goldRule()}
+            <p ${e?`contenteditable="true" onblur="updateField(${idx},'subtitle',this.innerText)"`:''}
+               style="font-family:${SANS};font-size:0.85rem;color:#666;line-height:1.65;margin-bottom:44px;max-width:420px">${esc(slide.subtitle||'')}</p>
+            ${kpiGrid(slide.kpis||[])}
+            ${slide.note?`<div style="margin-top:36px;padding:16px 20px;border-right:2px solid ${GOLD};background:rgba(0,0,0,0.03);font-family:${SANS};font-size:0.76rem;color:#555;line-height:1.65;font-style:italic"><span ${e?`contenteditable="true" onblur="updateField(${idx},'note',this.innerText)"`:''}>${esc(slide.note)}</span></div>`:''}
+          </div>`;
+      }
+    }
+
+    case 'campaign_slide': {
+      const campaigns = (slide.campaigns||[]).map((c,ci)=>`
+        <div style="padding:18px 0;border-bottom:1px solid ${RULE};">
+          <div ${e?`contenteditable="true" onblur="updateCampaign(${idx},${ci},'name',this.innerText)"`:''}
+               style="font-family:${SANS};font-weight:700;font-size:0.82rem;color:${BLACK};margin-bottom:5px;letter-spacing:0.02em">${esc(c.name||'')}</div>
+          <div ${e?`contenteditable="true" onblur="updateCampaign(${idx},${ci},'text',this.innerText)"`:''}
+               style="font-family:${SANS};font-size:0.78rem;color:#666;line-height:1.6">${esc(c.text||'')}</div>
+          ${e?`<button onclick="deleteCampaign(${idx},${ci})" style="margin-top:4px;font-size:10px;color:#f87171;cursor:pointer;background:none;border:none">× מחק</button>`:''}
+        </div>`).join('');
+      const addBtn = e?`<button onclick="addCampaign(${idx})" style="margin-top:14px;font-size:10px;color:${GOLD};cursor:pointer;background:none;border:none;letter-spacing:0.1em;text-transform:uppercase">+ הוסף קמפיין</button>`:'';
+
+      if (hasImg) {
+        // RTL: image last in DOM = LEFT side
+        return `
+          <div style="min-height:720px;display:flex;background:${CREAM};">
+            <div style="flex:1;padding:52px 44px;">
+              <h2 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                  style="font-family:${SERIF};font-size:1.65rem;font-weight:500;color:${BLACK};margin-bottom:0">${esc(slide.title||'')}</h2>
+              ${goldRule()}
+              ${campaigns}${addBtn}
+            </div>
+            <div style="width:38%;background:url('${slide.image_url}') center/cover no-repeat;flex-shrink:0;"></div>
+          </div>`;
+      } else {
+        return `
+          <div style="min-height:720px;background:${CREAM};padding:60px 52px;">
+            <h2 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                style="font-family:${SERIF};font-size:1.9rem;font-weight:500;color:${BLACK};margin-bottom:0">${esc(slide.title||'')}</h2>
+            ${goldRule()}
+            ${campaigns}${addBtn}
+          </div>`;
+      }
+    }
+
+    case 'recommendations_slide': {
+      const hasBg = hasImg;
+      const overlay = hasBg?`<div style="position:absolute;inset:0;background:rgba(8,8,8,0.68);"></div>`:'';
+      const bgStyle = hasBg?`background:url('${slide.image_url}') center/cover no-repeat;`:`background:${BLACK};`;
+      return `
+        <div style="min-height:720px;${bgStyle}${hasBg?'position:relative;':''}">
+          ${overlay}
+          <div style="position:relative;padding:60px 52px;color:rgba(255,255,255,0.9);z-index:1;">
+            <h2 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                style="font-family:${SERIF};font-size:1.9rem;font-weight:400;margin-bottom:0;letter-spacing:0.01em">${esc(slide.title||'')}</h2>
+            <div style="width:36px;height:1px;background:${GOLD};margin:16px 0 36px;"></div>
+            ${(slide.items||[]).map((item,ii)=>`
+              <div style="padding:16px 0;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:flex-start;gap:16px;">
+                <span style="font-family:${SERIF};font-size:1.1rem;color:${GOLD};flex-shrink:0;line-height:1.4;opacity:0.9">0${ii+1}</span>
+                <span ${e?`contenteditable="true" onblur="updateItem(${idx},${ii},this.innerText)"`:''}
+                      style="font-family:${SANS};font-size:0.85rem;line-height:1.65;flex:1">${esc(item||'')}</span>
+                ${e?`<button onclick="deleteItem(${idx},${ii})" style="font-size:10px;color:#f87171;cursor:pointer;background:none;border:none;flex-shrink:0">×</button>`:''}
+              </div>`).join('')}
+            ${e?`<button onclick="addItem(${idx})" style="margin-top:16px;font-size:10px;color:${GOLD};cursor:pointer;background:none;border:none;letter-spacing:0.1em;text-transform:uppercase">+ הוסף המלצה</button>`:''}
+          </div>
+        </div>`;
+    }
+
+    default: { // custom
+      const hasBg = hasImg;
+      const bgStyle = hasBg?`background:url('${slide.image_url}') center/cover no-repeat;`:`background:${CREAM};`;
+      return `
+        <div style="min-height:720px;${bgStyle}${hasBg?'position:relative;':''}">
+          ${hasBg?`<div style="position:absolute;inset:0;background:rgba(0,0,0,0.52);"></div>`:''}
+          <div style="position:relative;padding:60px 52px;color:${hasBg?'rgba(255,255,255,0.9)':BLACK};z-index:1;">
+            <h2 ${e?`contenteditable="true" onblur="updateField(${idx},'title',this.innerText)"`:''}
+                style="font-family:${SERIF};font-size:1.9rem;font-weight:400;margin-bottom:0">${esc(slide.title||'שקופית מותאמת')}</h2>
+            <div style="width:36px;height:1px;background:${GOLD};margin:16px 0 20px;"></div>
+            <p ${e?`contenteditable="true" onblur="updateField(${idx},'text',this.innerText)"`:''}
+               style="font-family:${SANS};font-size:0.9rem;line-height:1.75;color:${hasBg?'rgba(255,255,255,0.8)':'#555'}">${esc(slide.text||'לחץ לעריכה...')}</p>
+          </div>
+        </div>`;
+    }
+  }
+}
+
+// ── Field mutations ────────────────────────────────────────────────────
+
+function updateField(idx, field, value) { slides[idx][field] = value; renderSlideList(); }
+function updateKpi(idx, ki, field, value) { slides[idx].kpis[ki][field] = value; }
+function updateCampaign(idx, ci, field, value) { slides[idx].campaigns[ci][field] = value; }
+function updateItem(idx, ii, value) { slides[idx].items[ii] = value; }
+
+function deleteCampaign(idx, ci) { slides[idx].campaigns.splice(ci, 1); renderSlideCanvas(); }
+function addCampaign(idx) { slides[idx].campaigns.push({name:'קמפיין חדש', text:'תיאור הקמפיין...'}); renderSlideCanvas(); }
+function deleteItem(idx, ii) { slides[idx].items.splice(ii, 1); renderSlideCanvas(); }
+function addItem(idx) { slides[idx].items.push('המלצה חדשה'); renderSlideCanvas(); }
+
+// ── Slide management ───────────────────────────────────────────────────
+
+function addSlide(type) {
+  const defaults = {
+    custom: {type:'custom', title:'שקופית חדשה', text:'כתוב כאן...', image_url:null}
+  };
+  slides.push(defaults[type] || defaults.custom);
+  selectSlide(slides.length - 1);
+}
+
+function deleteCurrentSlide() {
+  if (slides.length <= 1) return alert('לא ניתן למחוק את השקופית האחונה');
+  if (!confirm('למחוק שקופית זו?')) return;
+  slides.splice(currentIdx, 1);
+  currentIdx = Math.max(0, currentIdx - 1);
+  renderSlideList();
+  renderSlideCanvas();
+  updateToolbar();
+}
+
+// ── Image upload ───────────────────────────────────────────────────────
+
+function uploadSlideImage(input) {
+  if (!input.files || !input.files[0]) return;
+  const fd = new FormData();
+  fd.append('image', input.files[0]);
+  fetch(`/reports/${REPORT_ID}/slides/${currentIdx}/image`, { method:'POST', body:fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        slides[currentIdx].image_url = data.url;
+        renderSlideList();
+        renderSlideCanvas();
+        updateToolbar();
+      }
+    });
+  input.value = '';
+}
+
+function removeSlideImage() {
+  slides[currentIdx].image_url = null;
+  renderSlideList();
+  renderSlideCanvas();
+  updateToolbar();
+}
+
+// ── Save / Publish ─────────────────────────────────────────────────────
+
+async function saveReport() {
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '⏳ שומר...';
+  await fetch(`/reports/${REPORT_ID}/save`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({slides})
+  });
+  btn.textContent = '✅ נשמר!';
+  setTimeout(() => btn.textContent = '💾 שמור', 2000);
+}
+
+async function publishReport() {
+  await saveReport();
+  const res = await fetch(`/reports/${REPORT_ID}/publish`, {method:'POST'});
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById('view-url').value = data.embed_url;
+    document.getElementById('iframe-code').value = data.iframe_code;
+    document.getElementById('publish-modal').classList.remove('hidden');
+    document.getElementById('publish-btn').textContent = '✅ פורסם – עדכן';
+    document.getElementById('publish-btn').classList.replace('bg-indigo-600','bg-green-600');
+    document.getElementById('publish-btn').classList.replace('hover:bg-indigo-700','hover:bg-green-700');
+  }
+}
+
+function copyIframe() {
+  navigator.clipboard.writeText(document.getElementById('iframe-code').value);
+  event.target.textContent = '✅ הועתק!';
+  setTimeout(()=>event.target.textContent='העתק קוד iFrame', 2000);
+}
+
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Auto-save
+setInterval(saveReport, 60000);
+
+// Init
+renderSlideList();
+renderSlideCanvas();
+updateToolbar();
+</script>
+{% endblock %}

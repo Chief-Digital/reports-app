@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}דוח חדש - ReportAI{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="mb-6">
+    <a href="{{ url_for('reports_list') }}" class="text-sm text-gray-400 hover:text-gray-600">← חזרה לדוחות</a>
+    <h1 class="text-2xl font-bold text-gray-900 mt-2">העלאת דוח חדש</h1>
+    <p class="text-gray-500 text-sm mt-1">העלה עד 2 קבצים – Meta ו/או Google Ads – Claude ינתח את שניהם יחד</p>
+  </div>
+
+  {% if error %}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-5 py-4 mb-5 text-sm">⚠️ {{ error }}</div>
+  {% endif %}
+
+  <form method="POST" enctype="multipart/form-data" id="upload-form" class="space-y-5">
+
+    <!-- File slots -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <label class="block text-sm font-medium text-gray-700">קבצי דוחות</label>
+
+      <!-- Meta slot -->
+      <div class="border-2 border-dashed border-blue-200 rounded-xl p-5 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
+           id="meta-zone" onclick="document.getElementById('meta-input').click()">
+        <input type="file" id="meta-input" name="meta_file" accept=".csv,.xlsx,.xls" class="hidden"
+               onchange="onFile(this,'meta')">
+        <div id="meta-placeholder">
+          <div class="text-2xl mb-1">📘</div>
+          <div class="font-medium text-sm text-blue-700">Meta Ads</div>
+          <div class="text-xs text-gray-400 mt-0.5">CSV / Excel מ-Ads Manager</div>
+        </div>
+        <div id="meta-selected" class="hidden">
+          <div class="text-2xl mb-1">✅</div>
+          <div class="font-medium text-sm text-green-700" id="meta-name"></div>
+          <div class="text-xs text-gray-400 mt-0.5">לחץ להחלפה</div>
+        </div>
+      </div>
+
+      <!-- Google Ads slot -->
+      <div class="border-2 border-dashed border-red-200 rounded-xl p-5 text-center cursor-pointer hover:border-red-400 hover:bg-red-50 transition"
+           id="google-zone" onclick="document.getElementById('google-input').click()">
+        <input type="file" id="google-input" name="google_file" accept=".csv,.xlsx,.xls" class="hidden"
+               onchange="onFile(this,'google')">
+        <div id="google-placeholder">
+          <div class="text-2xl mb-1">🔴</div>
+          <div class="font-medium text-sm text-red-700">Google Ads</div>
+          <div class="text-xs text-gray-400 mt-0.5">CSV / Excel מ-Google Ads</div>
+        </div>
+        <div id="google-selected" class="hidden">
+          <div class="text-2xl mb-1">✅</div>
+          <div class="font-medium text-sm text-green-700" id="google-name"></div>
+          <div class="text-xs text-gray-400 mt-0.5">לחץ להחלפה</div>
+        </div>
+      </div>
+
+      <p id="file-error" class="text-xs text-red-500 hidden text-center">יש להעלות לפחות קובץ אחד</p>
+    </div>
+
+    <!-- Details -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">לקוח</label>
+        <select name="client_id" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+          <option value="">ללא לקוח</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">כותרת הדוח <span class="text-red-500">*</span></label>
+        <input type="text" name="title" placeholder="למשל: דוח ביצועים פברואר 2026" required
+               class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      </div>
+    </div>
+
+    <!-- Slide images -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+      <label class="block text-sm font-medium text-gray-700 mb-1">תמונות לשקופיות</label>
+      <p class="text-xs text-gray-400 mb-4">אופציונלי – כל תמונה תשובץ אוטומטית בשקופית המתאימה</p>
+      <div class="grid grid-cols-2 gap-3" id="slide-images-grid">
+
+        <!-- Cover -->
+        <div class="slide-img-slot rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:border-indigo-300 transition"
+             onclick="document.getElementById('img-cover').click()">
+          <input type="file" id="img-cover" name="img_cover" accept=".png,.jpg,.jpeg,.webp" class="hidden"
+                 onchange="onSlideImg(this,'prev-cover','lbl-cover')">
+          <div class="h-24 bg-gray-50 flex items-center justify-center overflow-hidden" id="prev-cover">
+            <span class="text-2xl">🖼️</span>
+          </div>
+          <div class="px-3 py-2 border-t border-gray-100">
+            <div class="text-xs font-medium text-gray-700">שקופית פתיחה</div>
+            <div class="text-xs text-gray-400 truncate mt-0.5" id="lbl-cover">לחץ להעלאה</div>
+          </div>
+        </div>
+
+        <!-- Meta KPI -->
+        <div class="slide-img-slot rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:border-indigo-300 transition"
+             onclick="document.getElementById('img-meta').click()">
+          <input type="file" id="img-meta" name="img_meta" accept=".png,.jpg,.jpeg,.webp" class="hidden"
+                 onchange="onSlideImg(this,'prev-meta','lbl-meta')">
+          <div class="h-24 bg-gray-50 flex items-center justify-center overflow-hidden" id="prev-meta">
+            <span class="text-2xl">📘</span>
+          </div>
+          <div class="px-3 py-2 border-t border-gray-100">
+            <div class="text-xs font-medium text-gray-700">נתוני Meta</div>
+            <div class="text-xs text-gray-400 truncate mt-0.5" id="lbl-meta">לחץ להעלאה</div>
+          </div>
+        </div>
+
+        <!-- Google KPI -->
+        <div class="slide-img-slot rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:border-indigo-300 transition"
+             onclick="document.getElementById('img-google').click()">
+          <input type="file" id="img-google" name="img_google" accept=".png,.jpg,.jpeg,.webp" class="hidden"
+                 onchange="onSlideImg(this,'prev-google','lbl-google')">
+          <div class="h-24 bg-gray-50 flex items-center justify-center overflow-hidden" id="prev-google">
+            <span class="text-2xl">🔴</span>
+          </div>
+          <div class="px-3 py-2 border-t border-gray-100">
+            <div class="text-xs font-medium text-gray-700">נתוני Google</div>
+            <div class="text-xs text-gray-400 truncate mt-0.5" id="lbl-google">לחץ להעלאה</div>
+          </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="slide-img-slot rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:border-indigo-300 transition"
+             onclick="document.getElementById('img-rec').click()">
+          <input type="file" id="img-rec" name="img_rec" accept=".png,.jpg,.jpeg,.webp" class="hidden"
+                 onchange="onSlideImg(this,'prev-rec','lbl-rec')">
+          <div class="h-24 bg-gray-50 flex items-center justify-center overflow-hidden" id="prev-rec">
+            <span class="text-2xl">💡</span>
+          </div>
+          <div class="px-3 py-2 border-t border-gray-100">
+            <div class="text-xs font-medium text-gray-700">המלצות</div>
+            <div class="text-xs text-gray-400 truncate mt-0.5" id="lbl-rec">לחץ להעלאה</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <button type="submit" id="submit-btn"
+            class="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition">
+      <span id="btn-text">🤖 נתח דוחות עם AI</span>
+      <span id="btn-loading" class="hidden">⏳ מנתח... עשוי לקחת כ-30–60 שניות</span>
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onFile(input, platform) {
+  if (!input.files || !input.files[0]) return;
+  const name = input.files[0].name;
+  document.getElementById(platform + '-name').textContent = name;
+  document.getElementById(platform + '-placeholder').classList.add('hidden');
+  document.getElementById(platform + '-selected').classList.remove('hidden');
+}
+
+function onSlideImg(input, prevId, lblId) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  document.getElementById(lblId).textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const prev = document.getElementById(prevId);
+    prev.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Drag and drop for data file zones
+['meta', 'google'].forEach(p => {
+  const zone = document.getElementById(p + '-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('ring-2','ring-indigo-300'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('ring-2','ring-indigo-300'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('ring-2','ring-indigo-300');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const input = document.getElementById(p + '-input');
+    input.files = dt.files;
+    onFile(input, p);
+  });
+});
+
+document.getElementById('upload-form').addEventListener('submit', e => {
+  const hasMeta   = document.getElementById('meta-input').files.length > 0;
+  const hasGoogle = document.getElementById('google-input').files.length > 0;
+  if (!hasMeta && !hasGoogle) {
+    e.preventDefault();
+    document.getElementById('file-error').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('btn-text').classList.add('hidden');
+  document.getElementById('btn-loading').classList.remove('hidden');
+  document.getElementById('submit-btn').disabled = true;
+});
+</script>
+{% endblock %}
