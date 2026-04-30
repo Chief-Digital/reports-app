@@ -14,10 +14,13 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-prod")
 
 BASE_DIR = os.path.dirname(__file__)
-UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join(BASE_DIR, "static", "uploads"))
 ALLOWED_REPORT_EXT = {"csv", "xlsx", "xls"}
 ALLOWED_IMAGE_EXT = {"png", "jpg", "jpeg", "gif", "webp", "svg"}
 ALLOWED_LOGO_EXT = {"png", "jpg", "jpeg", "svg", "webp"}
+
+for _d in ["reports", "images", "logos"]:
+    os.makedirs(os.path.join(UPLOAD_DIR, _d), exist_ok=True)
 
 db.init_db()
 
