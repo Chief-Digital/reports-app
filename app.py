@@ -7,6 +7,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import sys
+_key = os.environ.get("ANTHROPIC_API_KEY", "")
+print(f"[STARTUP] ANTHROPIC_API_KEY: {'SET len=' + str(len(_key)) if _key else 'MISSING'}", file=sys.stderr, flush=True)
+
 import database as db
 from analysis import analyze_report, analyze_combined_report, detect_platform, load_file
 
