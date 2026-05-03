@@ -3,7 +3,7 @@ import anthropic
 import pandas as pd
 import os
 
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = anthropic.Anthropic()
 
 META_COLUMNS = {"campaign name", "amount spent", "results", "impressions", "reach", "link clicks", "ctr", "cpm", "roas"}
 GOOGLE_COLUMNS = {"campaign", "cost", "conversions", "clicks", "impressions", "ctr", "avg. cpc"}
